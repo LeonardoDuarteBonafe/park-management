@@ -1,20 +1,34 @@
 import { PaymentMethod, UserRole, VehicleType } from "@prisma/client";
 import { z } from "zod";
 
+import {
+  isValidBrazilianPlate,
+  normalizePlateValue,
+} from "@/lib/plates/brazilian-plates";
+
 const dateSchema = z.coerce.date();
 
+const brazilianPlateSchema = z
+  .string()
+  .min(1, "Informe a placa.")
+  .transform((value) => normalizePlateValue(value))
+  .refine(
+    (value) => isValidBrazilianPlate(value),
+    "Informe uma placa brasileira válida no padrão antigo ou Mercosul.",
+  );
+
+const optionalBrazilianPlateSchema = z
+  .string()
+  .trim()
+  .transform((value) => normalizePlateValue(value) || null)
+  .refine(
+    (value) => value === null || isValidBrazilianPlate(value),
+    "Sugestão OCR inválida.",
+  );
+
 export const ticketEntrySchema = z.object({
-  plate: z
-    .string()
-    .min(6, "Informe a placa.")
-    .max(8, "Placa inválida.")
-    .transform((value) => value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase()),
-  plateOcrSuggestion: z
-    .string()
-    .trim()
-    .transform((value) => value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())
-    .optional()
-    .nullable(),
+  plate: brazilianPlateSchema,
+  plateOcrSuggestion: optionalBrazilianPlateSchema.optional().nullable(),
   platePhotoDataUrl: z.string().startsWith("data:image/").optional().nullable(),
   vehicleType: z.nativeEnum(VehicleType),
   entryAt: dateSchema,
@@ -27,12 +41,7 @@ export const ticketSearchSchema = z.object({
 });
 
 export const ticketUpdateSchema = z.object({
-  plate: z
-    .string()
-    .min(6)
-    .max(8)
-    .transform((value) => value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())
-    .optional(),
+  plate: brazilianPlateSchema.optional(),
   entryAt: dateSchema.optional(),
   notes: z.string().max(400).optional().nullable(),
   vehicleType: z.nativeEnum(VehicleType).optional(),

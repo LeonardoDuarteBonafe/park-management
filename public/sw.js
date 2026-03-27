@@ -1,5 +1,5 @@
-const CACHE_NAME = "parkflow-static-v2";
-const OFFLINE_FALLBACK = "/login";
+const CACHE_NAME = "parkflow-static-v3";
+const OFFLINE_FALLBACK = "/offline.html";
 const APP_SHELL = [OFFLINE_FALLBACK];
 const STATIC_DESTINATIONS = new Set(["style", "script", "image", "font"]);
 const STATIC_ASSET_PATTERN =

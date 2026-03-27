@@ -37,6 +37,11 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (process.env.NODE_ENV !== "production") {
+      void unregisterServiceWorkers();
+      return;
+    }
+
     void navigator.serviceWorker.register("/sw.js", {
       scope: "/",
       updateViaCache: "none",
@@ -67,6 +72,17 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       />
     </>
   );
+}
+
+async function unregisterServiceWorkers() {
+  const registrations = await navigator.serviceWorker.getRegistrations();
+
+  await Promise.all(registrations.map((registration) => registration.unregister()));
+
+  if ("caches" in window) {
+    const cacheKeys = await window.caches.keys();
+    await Promise.all(cacheKeys.map((cacheKey) => window.caches.delete(cacheKey)));
+  }
 }
 
 async function syncPendingEntries() {

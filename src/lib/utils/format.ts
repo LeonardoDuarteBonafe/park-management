@@ -2,6 +2,8 @@ import { PaymentMethod, TicketStatus, UserRole, VehicleType } from "@prisma/clie
 import { format, formatDistanceStrict } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+import { normalizePlateValue } from "@/lib/plates/brazilian-plates";
+
 export function formatCurrencyFromCents(valueInCents: number) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -69,5 +71,5 @@ export function formatTicketStatus(status: TicketStatus) {
 }
 
 export function plateMask(value: string) {
-  return value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return normalizePlateValue(value);
 }

@@ -6,7 +6,7 @@ MVP fullstack de gestao de estacionamento com foco em operacao mobile, maquininh
 
 - Login com e-mail e senha, sessao persistida e rotas protegidas.
 - Perfis `ADMIN` e `OPERATOR`.
-- Entrada de veiculo com camera, captura da placa, OCR por `tesseract.js`, confirmacao manual obrigatoria e salvamento da foto.
+- Entrada de veiculo com camera, captura da placa, OCR server-side por `PaddleOCR` + `OpenCV`, validacao estrita de placas brasileiras, confirmacao manual e salvamento da foto.
 - Ticket unico com QR Code, barcode e tela de reimpressao/compartilhamento.
 - Saida com leitura por camera via `html5-qrcode`, busca manual por ticket/placa, calculo automatico e fechamento com pagamento.
 - Pagamento manual preparado para evolucao futura com cartao, pix e dinheiro.
@@ -23,7 +23,7 @@ MVP fullstack de gestao de estacionamento com foco em operacao mobile, maquininh
 - Tailwind CSS 4
 - PostgreSQL + Prisma
 - PWA com `manifest.ts` + `public/sw.js`
-- OCR com `tesseract.js`
+- OCR local com `PaddleOCR` + `OpenCV` em um CLI Python isolado
 - Leitura QR/barcode com `html5-qrcode`
 - Graficos com `recharts`
 - Testes com Vitest
@@ -44,6 +44,8 @@ Variaveis esperadas:
 DATABASE_URL="postgresql://postgres:postgres@localhost:5433/parking_mvp?schema=public"
 APP_URL="http://localhost:3000"
 AUTH_SECRET="troque-esta-chave-por-uma-string-longa-e-segura"
+PLATE_OCR_PYTHON_BIN=""
+PLATE_OCR_DEBUG="0"
 ```
 
 Em deploy na Vercel, `AUTH_SECRET` precisa estar configurada nas Environment Variables do projeto antes do build.
@@ -58,7 +60,22 @@ docker compose up -d
 
 Observacao: no ambiente em que implementei, o Docker Desktop nao estava rodando, entao eu nao consegui executar `docker compose up`, `migrate` e `seed` aqui. O projeto, lint, build e testes foram validados; para banco local voce precisa ligar o Docker e executar os passos abaixo.
 
-### 3. Aplicar schema e seed
+### 3. Instalar o OCR local de placas
+
+Crie um ambiente virtual Python e instale as dependencias do OCR:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r python/requirements.txt
+```
+
+Observacoes:
+
+- A rota `/api/ocr/plate` detecta automaticamente `.venv/Scripts/python.exe` no Windows e `.venv/bin/python` em Unix.
+- Se quiser usar outro Python, preencha `PLATE_OCR_PYTHON_BIN` no `.env`.
+- Na primeira execucao real do PaddleOCR, os modelos oficiais sao baixados e ficam em cache local no perfil do usuario.
+
+### 4. Aplicar schema e seed
 
 ```bash
 npm run prisma:generate
@@ -74,7 +91,7 @@ npm run prisma:migrate
 
 Ja deixei uma migration inicial em `prisma/migrations/202603262247_init/migration.sql`.
 
-### 4. Rodar a aplicacao
+### 5. Rodar a aplicacao
 
 ```bash
 npm run dev
@@ -105,6 +122,7 @@ npm test
 npm run prisma:generate
 npm run prisma:migrate
 npm run prisma:seed
+npm run test:plate-ocr
 docker compose up -d
 docker compose down
 ```
@@ -144,7 +162,7 @@ Observacoes:
 1. Entrar no sistema.
 2. Ir em `/entrada`.
 3. Abrir camera e capturar a placa.
-4. Conferir a sugestao do OCR e corrigir manualmente se necessario.
+4. Conferir a sugestao do OCR; se nenhuma placa BR valida for encontrada, o sistema pede nova captura ou confirmacao manual.
 5. Ajustar horario, observacoes e tipo do veiculo.
 6. Salvar e abrir o ticket gerado em `/ticket/[ticketNumber]`.
 
@@ -218,6 +236,7 @@ public/
 ## Decisoes tecnicas
 
 - Persistencia de fotos de placa: armazenamento local em `public/uploads/plates` para manter o MVP simples e executavel.
+- OCR de placas: pipeline em Python isolado com heuristica de ROI, multiplas variantes de preprocessamento, PaddleOCR e pos-processamento especifico para placas brasileiras.
 - Sessao: cookie assinado com `jose`, sem dependencia externa de auth provider.
 - Preco: regras desacopladas em `src/lib/services/pricing.ts`, com snapshot salvo no ticket fechado para auditoria.
 - Pagamento: fluxo manual, mas isolado em service/API para futura integracao com adquirente ou Pix real.
@@ -229,4 +248,5 @@ public/
 npm run lint
 npm run build
 npm test
+.\.venv\Scripts\python.exe -m unittest discover -s python/tests -t python -v
 ```

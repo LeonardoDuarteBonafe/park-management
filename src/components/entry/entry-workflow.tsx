@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input, Select, Textarea } from "@/components/ui/fields";
 import { cacheTicket, queuePendingEntry } from "@/lib/offline/storage";
+import type { PlateOcrResult } from "@/lib/ocr/types";
+import { isValidBrazilianPlate } from "@/lib/plates/brazilian-plates";
 import { formatDateInputValue, plateMask } from "@/lib/utils/format";
 
 export function EntryWorkflow() {
@@ -74,19 +76,49 @@ export function EntryWorkflow() {
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
     setCapturedImage(dataUrl);
     setOcrLoading(true);
 
+    if (!window.navigator.onLine) {
+      setOcrSuggestion("");
+      setOcrLoading(false);
+      toast.error("Sem conexão para processar o OCR. Confirme a placa manualmente.");
+      return;
+    }
+
     try {
-      const Tesseract = await import("tesseract.js");
-      const result = await Tesseract.recognize(dataUrl, "eng");
-      const cleaned = sanitizePlateText(result.data.text);
-      setOcrSuggestion(cleaned);
-      if (!plate) {
-        setPlate(cleaned);
+      const response = await fetch("/api/ocr/plate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          dataUrl,
+        }),
+      });
+
+      const data = (await response.json()) as {
+        error?: string;
+        result?: PlateOcrResult;
+      };
+
+      if (!response.ok || !data.result?.plate_normalized) {
+        setOcrSuggestion("");
+        toast.error(
+          data.error ?? "Não foi possível validar a placa automaticamente. Faça uma nova captura.",
+        );
+        return;
+      }
+
+      const suggestedPlate = data.result.plate_normalized;
+      setOcrSuggestion(suggestedPlate);
+
+      if (!plate || plate === ocrSuggestion) {
+        setPlate(suggestedPlate);
       }
     } catch {
+      setOcrSuggestion("");
       toast.error("OCR indisponível no momento. Confirme a placa manualmente.");
     } finally {
       setOcrLoading(false);
@@ -96,8 +128,8 @@ export function EntryWorkflow() {
   const handleSubmit = async () => {
     const normalizedPlate = plateMask(plate);
 
-    if (!normalizedPlate) {
-      toast.error("Confirme a placa antes de salvar.");
+    if (!isValidBrazilianPlate(normalizedPlate)) {
+      toast.error("Confirme uma placa brasileira válida antes de salvar.");
       return;
     }
 
@@ -206,7 +238,7 @@ export function EntryWorkflow() {
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Button onClick={() => void handleCapture()} disabled={ocrLoading}>
-            {ocrLoading ? "Lendo placa..." : "Capturar placa"}
+            {ocrLoading ? "Detectando placa..." : "Capturar placa"}
           </Button>
           {capturedImage ? (
             <Button
@@ -226,18 +258,18 @@ export function EntryWorkflow() {
         <div className="space-y-4">
           <FieldLabel
             label="Placa confirmada"
-            hint="O OCR apenas sugere. O salvamento só acontece após sua confirmação."
+            hint="O OCR só sugere quando encontra uma placa brasileira válida."
           >
             <Input
               value={plate}
               onChange={(event) => setPlate(plateMask(event.target.value))}
-              placeholder="ABC1D23"
-              maxLength={8}
+              placeholder="ABC1234 ou ABC1D23"
+              maxLength={7}
             />
           </FieldLabel>
 
           <FieldLabel label="Sugestão do OCR">
-            <Input value={ocrSuggestion} readOnly placeholder="Aguardando leitura" />
+            <Input value={ocrSuggestion} readOnly placeholder="Aguardando captura" />
           </FieldLabel>
 
           <FieldLabel label="Tipo do veículo">
@@ -285,8 +317,4 @@ export function EntryWorkflow() {
       </Card>
     </div>
   );
-}
-
-function sanitizePlateText(input: string) {
-  return input.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 8);
 }

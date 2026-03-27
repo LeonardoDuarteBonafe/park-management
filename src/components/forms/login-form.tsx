@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldLabel, Input } from "@/components/ui/fields";
 
 export function LoginForm() {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [email, setEmail] = useState("admin@parkflow.local");
   const [password, setPassword] = useState("Admin123!");
@@ -37,8 +35,7 @@ export function LoginForm() {
         return;
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      window.location.replace("/dashboard");
     });
   };
 

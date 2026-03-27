@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: parking-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: parking_mvp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - parking_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  parking_postgres_data:

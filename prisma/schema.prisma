@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+}
+
+enum VehicleType {
+  CAR
+  MOTORCYCLE
+  UTILITY
+}
+
+enum TicketStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  PIX
+  CASH
+}
+
+enum AuditAction {
+  LOGIN
+  ENTRY_CREATED
+  PLATE_UPDATED
+  ENTRY_TIME_UPDATED
+  EXIT_RECORDED
+  PAYMENT_RECORDED
+  TICKET_CANCELLED
+  TICKET_MARKED_LOST
+  DISCOUNT_APPLIED
+  USER_CREATED
+  USER_UPDATED
+  PRICING_RULE_CREATED
+  PRICING_RULE_UPDATED
+}
+
+model User {
+  id                 String          @id @default(cuid())
+  name               String
+  email              String          @unique
+  passwordHash       String
+  role               UserRole        @default(OPERATOR)
+  active             Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  createdEntries     ParkingTicket[] @relation("EntryRegisteredBy")
+  exitEntries        ParkingTicket[] @relation("ExitRegisteredBy")
+  adjustedEntries    ParkingTicket[] @relation("EntryAdjustedBy")
+  cancelledTickets   ParkingTicket[] @relation("TicketCancelledBy")
+  paymentsRegistered Payment[]       @relation("PaymentRegisteredBy")
+  createdPricing     PricingRule[]   @relation("PricingRuleCreatedBy")
+  updatedPricing     PricingRule[]   @relation("PricingRuleUpdatedBy")
+  auditLogs          AuditLog[]      @relation("AuditActor")
+}
+
+model PricingRule {
+  id                           String          @id @default(cuid())
+  name                         String
+  vehicleType                  VehicleType
+  initialPriceCents            Int
+  graceMinutes                 Int
+  additionalFractionMinutes    Int
+  additionalFractionPriceCents Int
+  dailyMaxPriceCents           Int
+  lostTicketFeeCents           Int
+  active                       Boolean         @default(true)
+  createdById                  String?
+  updatedById                  String?
+  createdAt                    DateTime        @default(now())
+  updatedAt                    DateTime        @updatedAt
+  createdBy                    User?           @relation("PricingRuleCreatedBy", fields: [createdById], references: [id])
+  updatedBy                    User?           @relation("PricingRuleUpdatedBy", fields: [updatedById], references: [id])
+  tickets                      ParkingTicket[]
+
+  @@index([vehicleType, active])
+}
+
+model ParkingTicket {
+  id                    String       @id @default(cuid())
+  ticketNumber          String       @unique
+  plate                 String
+  platePhotoPath        String?
+  plateOcrSuggestion    String?
+  vehicleType           VehicleType  @default(CAR)
+  entryAt               DateTime
+  originalEntryAt       DateTime?
+  exitAt                DateTime?
+  notes                 String?
+  status                TicketStatus @default(OPEN)
+  manualEntryTimeChanged Boolean     @default(false)
+  lostTicket            Boolean      @default(false)
+  cancelledAt           DateTime?
+  chargeAmountCents     Int?
+  discountAmountCents   Int          @default(0)
+  finalAmountCents      Int?
+  pricingSnapshot       Json?
+  entryRegisteredById   String
+  exitRegisteredById    String?
+  entryTimeAdjustedById String?
+  cancelledById         String?
+  priceRuleId           String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  payment               Payment?
+  entryRegisteredBy     User         @relation("EntryRegisteredBy", fields: [entryRegisteredById], references: [id])
+  exitRegisteredBy      User?        @relation("ExitRegisteredBy", fields: [exitRegisteredById], references: [id])
+  entryTimeAdjustedBy   User?        @relation("EntryAdjustedBy", fields: [entryTimeAdjustedById], references: [id])
+  cancelledBy          User?         @relation("TicketCancelledBy", fields: [cancelledById], references: [id])
+  priceRule            PricingRule?  @relation(fields: [priceRuleId], references: [id])
+
+  @@index([plate])
+  @@index([status, entryAt])
+  @@index([ticketNumber, status])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  ticketId          String        @unique
+  method            PaymentMethod
+  amountChargedCents Int
+  amountPaidCents   Int
+  changeAmountCents Int           @default(0)
+  notes             String?
+  registeredById    String
+  paidAt            DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  ticket            ParkingTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  registeredBy      User          @relation("PaymentRegisteredBy", fields: [registeredById], references: [id])
+
+  @@index([paidAt, method])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  actorId     String?
+  action      AuditAction
+  entityType  String
+  entityId    String
+  description String
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  actor       User?       @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+}
+

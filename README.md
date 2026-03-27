@@ -46,6 +46,8 @@ APP_URL="http://localhost:3000"
 AUTH_SECRET="troque-esta-chave-por-uma-string-longa-e-segura"
 ```
 
+Em deploy na Vercel, `AUTH_SECRET` precisa estar configurada nas Environment Variables do projeto antes do build.
+
 ### 2. Subir o PostgreSQL
 
 Com Docker Desktop ativo:

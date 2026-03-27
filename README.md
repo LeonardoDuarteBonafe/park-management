@@ -107,6 +107,34 @@ docker compose up -d
 docker compose down
 ```
 
+## Build standalone
+
+O projeto agora gera build `standalone` do Next.js ao rodar:
+
+```bash
+npm run build
+```
+
+Depois do build, os arquivos principais para empacotamento ficam em:
+
+```text
+.next/standalone
+.next/static
+public
+```
+
+Para rodar o build standalone manualmente:
+
+```bash
+node .next/standalone/server.js
+```
+
+Observacoes:
+
+- Ainda e necessario configurar `.env`.
+- O PostgreSQL continua sendo obrigatorio.
+- Se copiar o build para outra maquina, leve tambem `public/` e `.next/static/` junto com `.next/standalone/`.
+
 ## Fluxos principais
 
 ### Entrada
